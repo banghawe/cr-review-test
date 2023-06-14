@@ -1,4 +1,5 @@
-console.info("Loading Wortal.js 1.0.0");
+console.info("Loading Wortal.js 1.1.1");
+
 window.adsbygoogle = window.adsbygoogle || [];
 var PLACEMENTS = ["start", "pause", "next", "browse", "reward", "preroll"]
 
@@ -29,23 +30,73 @@ function getParameterByName(name) {
     return decodeURIComponent(results[2].replace(/\+/g, ' '));
 }
 
-window.triggerWortalAd = function (placement, description, beforeAd, afterAd, adBreakDone) {
+function event(name, features) {
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.open("POST", "https://wombat.digitalwill.co.jp/wortal/events");
+    xmlhttp.setRequestHeader("Content-Type", "application/json");
+    xmlhttp.send(JSON.stringify({ name, features }));
+}
+
+window.triggerWortalAd = function (placement, description, callbacks) {
+    /**
+     * Callbacks is object:
+     * {
+     *     beforeAd: function () {},
+     *     afterAd: function () {},
+     *     adBreakDone: function () {},
+     *     noShow: function () {}
+     * }
+     */
+    var adShown = false;
+    let clientId = getParameterByName("clientid");
+    let hostChannelId = getParameterByName("channelid")
+    let hostId = getParameterByName("hostid")
+    let sessionId = getParameterByName('sessid')
 
     if (PLACEMENTS.indexOf(placement) < 0) {
         console.warn("Invalid placement selected:", placement, "Should be one of", PLACEMENTS);
         return;
     }
 
+    setTimeout(function () {
+
+        if (adShown) {
+            event('AdShown', {
+                client_id: clientId,
+                host_channel_id: hostChannelId,
+                host_id: hostId,
+                session_id: sessionId,
+                placement
+            })
+            return;
+        }
+
+        console.warn("Ad did not show. Skipping.");
+        if (typeof callbacks.noShow !== "function") {
+
+            return;
+        }
+
+        callbacks.noShow();
+
+    }, 500);
+
     console.log("Wortal Ad Break called placement=", placement, "description=", description);
+
+    //{beforeAd, afterAd, adBreakDone, onNoShow}
+
     var params = {
         type: placement,
         name: description,
-        beforeAd: beforeAd,
-        afterAd: afterAd
+        beforeAd: function () {
+            adShown = true;
+            callbacks.beforeAd();
+        },
+        afterAd: callbacks.afterAd
     }
 
-    if (adBreakDone) {
-        params.adBreakDone = adBreakDone
+    if (callbacks.adBreakDone) {
+        params.adBreakDone = callbacks.adBreakDone
     }
 
     adBreak(params);
@@ -60,6 +111,7 @@ window.initWortal = function (callback) {
     let debug = getParameterByName("debug");
     let hostChannelId = getParameterByName("channelid");
     let hostId = getParameterByName("hostid")
+    let freqCap = `${getParameterByName("freqcap") || 30}s`
 
     if (clientId === "" || clientId === null) {
         console.error("Failed to setup wortal.js. Configuration \"clientid\" missing");
@@ -72,6 +124,7 @@ window.initWortal = function (callback) {
     } else {
         loadGoogleScript.setAttribute("data-ad-host", hostId);
         loadGoogleScript.setAttribute("data-ad-client", clientId);
+        loadGoogleScript.setAttribute("data-ad-frequency-hint", freqCap);
         hostChannelId ? loadGoogleScript.setAttribute("data-ad-host-channel", hostChannelId) : null;
     }
 
