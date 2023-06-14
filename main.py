@@ -21,3 +21,5 @@ elif week_day == 6:
     week_day_str = "Sunday"
 
 print(week_day_str)
+
+error code
