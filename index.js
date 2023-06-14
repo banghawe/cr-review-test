@@ -1,4 +1,4 @@
-console.info("Loading Wortal.js 1.1.2");
+console.info("Loading Wortal.js 1.1.3");
 
 window.adsbygoogle = window.adsbygoogle || [];
 var PLACEMENTS = ["start", "pause", "next", "browse", "reward", "preroll"]
@@ -59,14 +59,14 @@ window.triggerWortalAd = function (placement, description, callbacks) {
 
     var adShown = false;
     let clientId = getParameterByName("clientid");
-    let hostChannelId = getParameterByName("channelid")
+    let hostChannelId = getParameterByName("channelid");
     let hostId = getParameterByName("hostid")
     let sessionId = getParameterByName('sessid')
 
     console.info("Wortal Ad Break called placement=", placement, "description=", description);
 
     var params = {
-        type: placement, name: description 
+        type: placement, name: description
     }
 
     params.adBreakDone = function (placementInfo) {
@@ -214,4 +214,86 @@ window.initWortalLink = function (callback) {
             callback();
         }
     };
+}
+
+window.triggerWortalLinkAd = function (placementType, placementId, callbacks) {
+    /**
+     * Callbacks is object:
+     * {
+     *     beforeAd: function () {},
+     *     afterAd: function () {},
+     *     adDismissed: function () {},
+     *     adViewed: function () {},
+     *     noBreak: function () {},
+     * }
+     */
+
+    if (!window.wortalLink) {
+        return console.error("Please instantiate window.wortalLink by calling window.initWortalLink before using this function")
+    }
+
+    console.log("Attempting to show", placementType, "ad with wortalLink with id", placementId)
+    if (placementType == "reward") {
+        getWortalLinkRewardedVideoAd(placementId, callbacks)
+    } else {
+        getWortalLinkInterstitialAd(placementId, callbacks)
+    }
+}
+
+var getWortalLinkInterstitialAd = function (placementId, callbacks) {
+    if (!window.wortalLink) {
+        return console.error("Please instantiate window.wortalLink by calling window.initWortalLink before using this function")
+    }
+
+    var preloadedInterstitial = null;
+    window.wortalLink.getInterstitialAdAsync(placementId)
+        .then(function(interstitial) {
+            callbacks.beforeAd && callbacks.beforeAd();
+            preloadedInterstitial = interstitial;
+            return preloadedInterstitial.loadAsync();
+        })
+        .then(function () {
+            preloadedInterstitial.showAsync()
+                .then(function () {
+                    console.log('Interstitial ad finished successfully');
+                    callbacks.afterAd && callbacks.afterAd()
+                })
+                .catch(function(err) {
+                    onAdbreakError(err, callbacks)
+                });
+        })
+        .catch(function(err) {
+            onAdbreakError(err, callbacks)
+        });
+}
+
+var getWortalLinkRewardedVideoAd = function (placementId, callbacks) {
+    var preloadedRewardedVideo = null;
+    window.wortalLink.getRewardedVideoAsync(placementId)
+        .then(function(rewarded) {
+            callbacks.beforeAd && callbacks.beforeAd();
+            preloadedRewardedVideo = rewarded
+            return preloadedRewardedVideo.loadAsync();
+        })
+        .then(function() {
+            preloadedRewardedVideo.showAsync()
+            .then(function() {
+                console.log('Rewarded video watched successfully');
+                callbacks.adViewed && callbacks.adViewed();
+                callbacks.afterAd && callbacks.afterAd();
+            })
+            .catch(function(err) {
+                console.log(err);
+                callbacks.adDismissed && callbacks.adDismissed();
+            });
+        })
+        .catch(function(err) {
+            onAdbreakError(err, callbacks);
+        });
+}
+
+// Helpers
+var onAdbreakError = function(e, options) {
+    console.error(e);
+	options.noBreak && options.noBreak();
 }
