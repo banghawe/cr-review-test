@@ -1,7 +1,13 @@
-console.info("Loading Wortal.js 1.1.3");
+console.info("Loading Wortal.js 1.2.0");
 
 window.adsbygoogle = window.adsbygoogle || [];
 var PLACEMENTS = ["start", "pause", "next", "browse", "reward", "preroll"]
+var PLATFORMS = ["wortal", "link", "viber"]
+var PLATFORM_DOMAINS = {
+    "viber": ["vbrplsbx.io"],
+    "link": ["rgsbx.net", "lgsbx.net"],
+    "wortal": ["html5gameportal.com", "html5gameportal.dev"]
+}
 
 window.adBreak = adConfig = function (o) {
     adsbygoogle.push(o);
@@ -30,6 +36,29 @@ function getParameterByName(name) {
     return decodeURIComponent(results[2].replace(/\+/g, ' '));
 }
 
+function identifyPlatformByURL() {
+    var location = window.location;
+    var host = location.host
+
+    //Check Viber
+    viber_domains = PLATFORM_DOMAINS["viber"]
+    for (var i = 0; i < viber_domains.length; i++) {
+        if (host.indexOf(viber_domains[i]) !== -1) {
+            return window.setWortalPlatform('viber')
+        }
+    }
+
+    //Check Link
+    link_domains = PLATFORM_DOMAINS["link"]
+    for (var i = 0; i < link_domains.length; i++) {
+        if (host.indexOf(link_domains[i]) !== -1) {
+            return window.setWortalPlatform('link')
+        }
+    }
+
+    return window.setWortalPlatform('wortal')
+}
+
 function event(name, features) {
     var xmlhttp = new XMLHttpRequest();
     xmlhttp.open("POST", "https://wombat.digitalwill.co.jp/wortal/events");
@@ -37,7 +66,132 @@ function event(name, features) {
     xmlhttp.send(JSON.stringify({ name, features }));
 }
 
-window.triggerWortalAd = function (placement, description, callbacks) {
+window.getWortalPlatform = function () {
+    if (!window.wortalPlatform) {
+        return "wortal"
+    }
+
+    return window.wortalPlatform
+}
+
+window.setWortalPlatform = function (platform) {
+    if (PLATFORMS.indexOf(platform) < 0) {
+        console.warn("Invalid platform selected:", platform, "Should be one of", PLATFORMS);
+        return;
+    }
+
+    window.wortalPlatform = platform
+}
+
+window.initWortal = function (callback, onErrorCallback=function () {}) {
+    var platform = window.getWortalPlatform()
+    switch (platform) {
+        case "wortal":
+            return initWortalPlatform(callback, onErrorCallback);
+        case "link":
+            return initLinkPlatform(callback);
+        case "viber":
+            return initViberPlatform(callback);
+        default:
+            console.warn("Invalid platform selected:", platform, "Should be one of", PLATFORMS);
+            return;
+    }
+}
+
+window.triggerWortalAd = function (placement, placementId, description= "", callbacks) {
+    switch (window.getWortalPlatform()) {
+        case "wortal":
+            return triggerWortalPlatformAd(placement, description, callbacks);
+        case "link":
+        case "viber":
+            return triggerWortalLinkViberAd(placement, placementId, callbacks);
+    }
+}
+
+var initWortalPlatform = function (callback, onErrorCallback=function (){}) {
+    let hostIdMetaTagElm = document.createElement("meta")
+    let loadGoogleScript = document.createElement("script");
+    let clientId = getParameterByName("clientid");
+    let debug = getParameterByName("debug");
+    let hostChannelId = getParameterByName("channelid");
+    let hostId = getParameterByName("hostid");
+    let freqCap = `${getParameterByName("freqcap") || 30}s`
+
+    if (clientId === "" || clientId === null) {
+        console.error("Failed to setup wortal.js. Configuration \"clientid\" missing");
+        return;
+    }
+
+    if (debug === "true") {
+        loadGoogleScript.setAttribute("data-ad-client", "ca-pub-123456789");
+        loadGoogleScript.setAttribute("data-adbreak-test", "on");
+    } else {
+        loadGoogleScript.setAttribute("data-ad-host", hostId);
+        loadGoogleScript.setAttribute("data-ad-client", clientId);
+        loadGoogleScript.setAttribute("data-ad-frequency-hint", freqCap);
+        hostChannelId ? loadGoogleScript.setAttribute("data-ad-host-channel", hostChannelId) : null;
+    }
+
+    loadGoogleScript.setAttribute("src", "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js");
+    loadGoogleScript.setAttribute("type", "text/javascript");
+
+    hostIdMetaTagElm.setAttribute("name", "google-adsense-platform-account")
+    hostIdMetaTagElm.setAttribute("content", hostId)
+
+    document.head.appendChild(hostIdMetaTagElm);
+    document.head.appendChild(loadGoogleScript);
+
+    loadGoogleScript.onerror = function() {
+        console.log("Error loading " + this.src);
+        if (typeof (onErrorCallback) === "function") {
+
+            onErrorCallback();
+            return;
+
+        }
+    };
+
+    loadGoogleScript.addEventListener("load", function () {
+
+        if (typeof (callback) === "function") {
+
+            callback();
+            return;
+
+        }
+
+        console.warn("No callback provided to initWortal");
+
+    });
+}
+
+var initLinkPlatform = function (callback) {
+    var loadLinkScript = document.createElement("script");
+    document.head.appendChild(loadLinkScript);
+
+    loadLinkScript.src = "https://lg.rgames.jp/libs/link-game-sdk/1.3.0/bundle.js";
+    loadLinkScript.onload = function(script) {
+        window.wortalGame = LinkGame
+        if (typeof (callback) === "function") {
+            callback();
+        }
+    };
+}
+
+var initViberPlatform = function (callback) {
+    var loadLinkScript = document.createElement("script");
+    document.head.appendChild(loadLinkScript);
+
+    loadLinkScript.src = "https://vbrpl.io/libs/viber-play-sdk/1.13.0/bundle.js";
+    loadLinkScript.onload = function(script) {
+        window.wortalGame = ViberPlay
+        if (typeof (callback) === "function") {
+            callback();
+        }
+    };
+}
+
+var triggerWortalPlatformAd = function (placement, description, callbacks) {
     /**
      * Doc: https://developers.google.com/ad-placement/apis/adbreak
      * Callbacks is object:
@@ -117,7 +271,6 @@ window.triggerWortalAd = function (placement, description, callbacks) {
     } else {
 
         console.log("Attempting to show", placement);
-        //{beforeAd, afterAd, adBreakDone, onNoShow}
 
         // Set a timeout to control ads not showing.
         setTimeout(function () {
@@ -143,6 +296,9 @@ window.triggerWortalAd = function (placement, description, callbacks) {
 
         }, 500);
 
+
+        //{beforeAd, afterAd, adBreakDone, onNoShow}
+
         params.beforeAd = function () {
             adShown = true;
             callbacks.beforeAd();
@@ -152,71 +308,11 @@ window.triggerWortalAd = function (placement, description, callbacks) {
         adBreak(params);
 
     }
-}
 
-window.initWortal = function (callback) {
-
-    let hostIdMetaTagElm = document.createElement("meta")
-    let loadGoogleScript = document.createElement("script");
-    let clientId = getParameterByName("clientid");
-    let debug = getParameterByName("debug");
-    let hostChannelId = getParameterByName("channelid")
-    let hostId = getParameterByName("hostid")
-    let freqCap = `${getParameterByName("freqcap") || 30}s`
-
-    if (clientId === "" || clientId === null) {
-        console.error("Failed to setup wortal.js. Configuration \"clientid\" missing");
-        return;
-    }
-
-    if (debug === "true") {
-        loadGoogleScript.setAttribute("data-ad-client", "ca-pub-123456789");
-        loadGoogleScript.setAttribute("data-adbreak-test", "on");
-    } else {
-        loadGoogleScript.setAttribute("data-ad-host", hostId);
-        loadGoogleScript.setAttribute("data-ad-client", clientId);
-        loadGoogleScript.setAttribute("data-ad-frequency-hint", freqCap);
-        hostChannelId ? loadGoogleScript.setAttribute("data-ad-host-channel", hostChannelId) : null;
-    }
-
-    loadGoogleScript.setAttribute("src", "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js");
-    loadGoogleScript.setAttribute("type", "text/javascript");
-
-    hostIdMetaTagElm.setAttribute("name", "google-adsense-platform-account")
-    hostIdMetaTagElm.setAttribute("content", hostId)
-
-    document.head.appendChild(hostIdMetaTagElm);
-    document.head.appendChild(loadGoogleScript);
-
-    loadGoogleScript.addEventListener("load", function () {
-
-        if (typeof (callback) === "function") {
-
-            callback();
-            return;
-
-        }
-
-        console.warn("No callback provided to initWortal");
-
-    });
 
 }
 
-window.initWortalLink = function (callback) {
-    var loadLinkScript = document.createElement("script");
-    document.head.appendChild(loadLinkScript);
-
-    loadLinkScript.src = "https://lg.rgames.jp/libs/link-game-sdk/1.0/bundle.js";
-    loadLinkScript.onload = function(script) {
-        window.wortalLink = LinkGame
-        if (typeof (callback) === "function") {
-            callback();
-        }
-    };
-}
-
-window.triggerWortalLinkAd = function (placementType, placementId, callbacks) {
+var triggerWortalLinkViberAd = function (placementType, placementId, callbacks) {
     /**
      * Callbacks is object:
      * {
@@ -228,25 +324,25 @@ window.triggerWortalLinkAd = function (placementType, placementId, callbacks) {
      * }
      */
 
-    if (!window.wortalLink) {
-        return console.error("Please instantiate window.wortalLink by calling window.initWortalLink before using this function")
+    if (!window.wortalGame) {
+        return console.error("Please instantiate window.wortalGame by calling window.initWortal before using this function")
     }
 
-    console.log("Attempting to show", placementType, "ad with wortalLink with id", placementId)
+    console.log("Attempting to show", placementType, "ad with id", placementId)
     if (placementType == "reward") {
-        getWortalLinkRewardedVideoAd(placementId, callbacks)
+        getLinkViberRewardedVideoAd(placementId, callbacks)
     } else {
-        getWortalLinkInterstitialAd(placementId, callbacks)
+        getLinkViberInterstitialAd(placementId, callbacks)
     }
 }
 
-var getWortalLinkInterstitialAd = function (placementId, callbacks) {
-    if (!window.wortalLink) {
-        return console.error("Please instantiate window.wortalLink by calling window.initWortalLink before using this function")
+var getLinkViberInterstitialAd = function (placementId, callbacks) {
+    if (!window.wortalGame) {
+        return console.error("Please instantiate window.wortalGame by calling window.initWortal before using this function")
     }
 
     var preloadedInterstitial = null;
-    window.wortalLink.getInterstitialAdAsync(placementId)
+    window.wortalGame.getInterstitialAdAsync(placementId)
         .then(function(interstitial) {
             callbacks.beforeAd && callbacks.beforeAd();
             preloadedInterstitial = interstitial;
@@ -267,9 +363,9 @@ var getWortalLinkInterstitialAd = function (placementId, callbacks) {
         });
 }
 
-var getWortalLinkRewardedVideoAd = function (placementId, callbacks) {
+var getLinkViberRewardedVideoAd = function (placementId, callbacks) {
     var preloadedRewardedVideo = null;
-    window.wortalLink.getRewardedVideoAsync(placementId)
+    window.wortalGame.getRewardedVideoAsync(placementId)
         .then(function(rewarded) {
             callbacks.beforeAd && callbacks.beforeAd();
             preloadedRewardedVideo = rewarded
@@ -297,3 +393,5 @@ var onAdbreakError = function(e, options) {
     console.error(e);
 	options.noBreak && options.noBreak();
 }
+
+identifyPlatformByURL()
