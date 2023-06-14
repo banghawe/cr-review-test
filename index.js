@@ -66,7 +66,7 @@ window.triggerWortalAd = function (placement, description, callbacks) {
     console.info("Wortal Ad Break called placement=", placement, "description=", description);
 
     var params = {
-        type: placement, name: description
+        type: placement, name: description 
     }
 
     params.adBreakDone = function (placementInfo) {
