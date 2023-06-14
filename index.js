@@ -1,4 +1,4 @@
-console.info("Loading Wortal.js 1.2.0");
+console.info("Loading Wortal.js 1.3.0");
 
 window.adsbygoogle = window.adsbygoogle || [];
 var PLACEMENTS = ["start", "pause", "next", "browse", "reward", "preroll"]
@@ -8,6 +8,7 @@ var PLATFORM_DOMAINS = {
     "link": ["rgsbx.net", "lgsbx.net"],
     "wortal": ["html5gameportal.com", "html5gameportal.dev"]
 }
+var SHARE_TO = ["facebook", "twitter"]
 
 window.adBreak = adConfig = function (o) {
     adsbygoogle.push(o);
@@ -106,6 +107,21 @@ window.triggerWortalAd = function (placement, placementId, description= "", call
         case "viber":
             return triggerWortalLinkViberAd(placement, placementId, callbacks);
     }
+}
+
+window.shareGame = function (to, message) {
+    if (SHARE_TO.indexOf(to) < 0) {
+        console.warn("Invalid media social platform selected:", to, "Should be one of", SHARE_TO);
+        return;
+    }
+
+    switch (to) {
+        case "facebook":
+            return shareOnFacebook(message);
+        case "twitter":
+            return shareOnTwitter(message);
+    }
+
 }
 
 var initWortalPlatform = function (callback, onErrorCallback=function (){}) {
@@ -386,6 +402,24 @@ var getLinkViberRewardedVideoAd = function (placementId, callbacks) {
         .catch(function(err) {
             onAdbreakError(err, callbacks);
         });
+}
+
+var getShareUrl = function () {
+    var shareUrl = getParameterByName("shareUrl")
+
+    return shareUrl
+}
+
+var shareOnFacebook = function (message) {
+    var shareUrl = getShareUrl()
+    var url = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${message}`
+    window.open(url, "_blank");
+}
+
+var shareOnTwitter = function (message) {
+    var shareUrl = getShareUrl()
+    var url = "https://twitter.com/intent/tweet"
+    window.open(`${url}?url=${shareUrl}&text=${message}`, "_blank");
 }
 
 // Helpers
