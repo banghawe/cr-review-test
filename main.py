@@ -22,4 +22,4 @@ elif week_day == 6:
 
 print(week_day_str)
 
-error code
+error code a
